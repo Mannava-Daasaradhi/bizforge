@@ -1,10 +1,7 @@
 // config.js
 const CONFIG = {
-    // Switch this to your production URL when deploying the backend
-    // e.g., "https://bizforge-backend.onrender.com"
-    API_BASE_URL: "http://localhost:8000",
-    
-    // Feature flags or other global frontend settings can go here
+    // Make sure there is NO trailing slash at the end of the URL!
+    API_BASE_URL: "https://bizforge-backend-xyz.onrender.com", 
     DEFAULT_LANGUAGE: "en",
     MAX_RETRIES: 3
 };

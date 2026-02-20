@@ -7,5 +7,5 @@ requests==2.31.0
 huggingface-hub==0.20.3
 # For IBM Granite local/remote trust execution if running directly, 
 # though we'll likely use HF API for lightweight deployment
-transformers==4.37.2 
-torch==2.2.0
+#transformers==4.37.2 
+#torch==2.2.0
