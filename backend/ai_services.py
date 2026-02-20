@@ -59,12 +59,14 @@ async def call_groq(
 
 import base64
 
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 2 — Logo Generator (Zero-Dependency Local Engine)
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_logo_image(req):
-    # 1. Get the first letter of the brand name for the logo
+    # 1. Grab the first letter of the brand name (or 'B' if empty)
     initial = req.brand_name[0].upper() if req.brand_name else "B"
     
-    # 2. Draw a beautiful, modern SVG logo using pure code!
-    # No APIs, no external servers, no downloading.
+    # 2. Draw a modern, scalable SVG logo using pure Python strings
     svg_code = f"""
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="1024" height="1024">
         <defs>
@@ -79,13 +81,14 @@ async def generate_logo_image(req):
     </svg>
     """
     
-    # 3. Encode the SVG into a format the web browser can read directly as an image source
+    # 3. Encode the SVG into a Base64 Data URI (a format browsers read natively)
     b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
     data_uri = f"data:image/svg+xml;base64,{b64_svg}"
     
+    # 4. Return the data URI directly to the frontend
     return {
         "image_url": data_uri,
-        "prompt_used": "Zero-Dependency Local Vector Engine (Fallback)",
+        "prompt_used": "Zero-Dependency Local Vector Engine (100% Offline Generation)",
     }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -99,33 +102,6 @@ async def generate_brand_names(req):
     )
     result = await call_groq(prompt)
     return {"result": result}
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TAB 2 — Logo Generator
-# ══════════════════════════════════════════════════════════════════════════════
-async def generate_logo_image(req):
-    # Step 1: Ask Groq to craft the ideal SDXL prompt
-    prompt_builder = (
-        f"Write a highly descriptive, comma-separated Stable Diffusion XL image generation prompt "
-        f"to create a professional logo. Brand: {req.brand_name}, Industry: {req.industry}, "
-        f"Keywords: {req.keywords}, Style: {req.style_preference}. "
-        f"Specify clean white background, vector style, no text. Output the prompt only."
-    )
-    sdxl_prompt = await call_groq(prompt_builder)
-
-    # Step 2: Generate the image with SDXL
-    image_bytes = await call_sdxl(sdxl_prompt)
-
-    # Step 3: Save image using the absolute path resolved at module load time
-    filename  = f"logo_{int(time.time())}.png"
-    filepath  = LOGO_SAVE_DIR / filename
-    filepath.write_bytes(image_bytes)
-
-    return {
-        "image_url":   f"/static/generated_logos/{filename}",
-        "prompt_used": sdxl_prompt,
-    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════

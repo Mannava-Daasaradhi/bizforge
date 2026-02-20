@@ -18,8 +18,13 @@ app = FastAPI(
 #      to serve static logo images. Now GET is included.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Replace "*" with your Vercel domain in production
-    allow_credentials=True,
+    # FIX: allow_credentials=True + allow_origins=["*"] is ILLEGAL in Starlette —
+    # it raises ValueError at startup and the server never boots on Render.
+    # Credentials are not needed (no cookies/auth), so False is correct here.
+    # For production security, swap "*" for your Vercel domain:
+    # allow_origins=["https://your-app.vercel.app"],
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
