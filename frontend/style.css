@@ -1,0 +1,312 @@
+/* frontend/style.css */
+
+/* =========================================
+   VARIABLES & THEME CONFIGURATION
+========================================= */
+:root[data-theme="light"] {
+    --bg-primary: #FDEBD0;      /* Light Peach */
+    --bg-secondary: #FAD7B5;    /* Darker Peach */
+    --text-primary: #0D0D0D;    /* Deep Black */
+    --text-secondary: #333333;
+    --card-bg: #FFFFFF;         /* Clean White for cards */
+    --card-border: rgba(13, 13, 13, 0.1);
+    --accent-gradient: linear-gradient(135deg, #FAD7B5 0%, #0D0D0D 100%);
+    --btn-text: #FFFFFF;
+}
+
+:root[data-theme="dark"] {
+    --bg-primary: #0D0D0D;      /* Deep Black */
+    --bg-secondary: #1A1A1A;    /* Slightly lighter black */
+    --text-primary: #FDEBD0;    /* Light Peach text */
+    --text-secondary: #FAD7B5;
+    --card-bg: #262626;         /* Dark gray cards */
+    --card-border: rgba(253, 235, 208, 0.1);
+    --accent-gradient: linear-gradient(135deg, #1A1A1A 0%, #FAD7B5 100%);
+    --btn-text: #0D0D0D;
+}
+
+/* =========================================
+   BASE STYLES & TYPOGRAPHY
+========================================= */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    line-height: 1.6;
+}
+
+h1, h2, h3, .logo {
+    font-family: 'Playfair Display', serif;
+}
+
+a { text-decoration: none; color: inherit; }
+
+/* =========================================
+   NAVBAR
+========================================= */
+.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: var(--bg-secondary);
+    padding: 1rem 2rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.logo span {
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.nav-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.lang-selector, .theme-btn {
+    padding: 0.5rem;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* =========================================
+   HERO SECTION
+========================================= */
+.hero {
+    text-align: center;
+    padding: 6rem 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.clapper-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.hero h1 {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+}
+
+.hero p {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+.btn-primary {
+    display: inline-block;
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    padding: 1rem 2rem;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+/* =========================================
+   STATS BAR & CINEMATIC DIVIDERS
+========================================= */
+.stats-bar {
+    background: var(--bg-secondary);
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    padding: 1rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex-wrap: wrap;
+}
+
+.film-reel-divider {
+    height: 20px;
+    background: repeating-linear-gradient(
+        90deg,
+        var(--text-primary),
+        var(--text-primary) 20px,
+        transparent 20px,
+        transparent 30px
+    );
+    opacity: 0.2;
+    margin: 3rem 0;
+}
+
+/* =========================================
+   STAGES & GRID (THE TOOLS)
+========================================= */
+.section-title {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 3rem;
+    margin-top: 4rem;
+}
+
+.stage-container {
+    display: flex;
+    gap: 2rem;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.stage-card {
+    flex: 1;
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: 8px;
+    border: 1px solid var(--card-border);
+    text-align: center;
+}
+
+.tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.tool-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    padding: 1.5rem;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+.tool-card .icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.tool-card h3 {
+    margin-bottom: 0.5rem;
+}
+
+.tool-card p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    flex-grow: 1;
+}
+
+.explore {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.benefits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 2rem 4rem 2rem;
+}
+
+.benefit-tile {
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* =========================================
+   ANIMATIONS
+========================================= */
+.fade-in {
+    animation: fadeIn 1s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.lift-effect {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.lift-effect:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.pulse-hover:hover {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* =========================================
+   FOOTER
+========================================= */
+footer {
+    text-align: center;
+    padding: 2rem;
+    margin-top: 4rem;
+    background: var(--card-bg);
+}
+
+.credits {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+/* =========================================
+   RESPONSIVE DESIGN
+========================================= */
+@media (max-width: 768px) {
+    .stage-container {
+        flex-direction: column;
+    }
+    .hero h1 {
+        font-size: 2.5rem;
+    }
+    .stats-bar {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    .divider {
+        display: none;
+    }
+}

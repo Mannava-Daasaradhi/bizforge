@@ -1,0 +1,11 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+pydantic==2.6.1
+groq==0.4.2
+python-dotenv==1.0.1
+requests==2.31.0
+huggingface-hub==0.20.3
+# For IBM Granite local/remote trust execution if running directly, 
+# though we'll likely use HF API for lightweight deployment
+transformers==4.37.2 
+torch==2.2.0
