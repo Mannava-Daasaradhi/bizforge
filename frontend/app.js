@@ -358,68 +358,107 @@ async function generateLogo() {
     const imageOutput  = document.getElementById('t2-image-output');
     const promptOutput = document.getElementById('t2-prompt-output');
     const downloadBtn  = document.getElementById('t2-download-btn');
-
     if (!loader) return;
+
+    const brandName = document.getElementById('t2-name').value.trim()     || 'MyBrand';
+    const industry  = document.getElementById('t2-industry').value.trim() || 'Business';
+    const keywords  = document.getElementById('t2-keywords').value.trim() || 'Modern';
+    const style     = document.getElementById('t2-style').value.trim()    || 'Minimalist';
 
     loader.style.display      = 'block';
     imageOutput.style.display = 'none';
     downloadBtn.style.display = 'none';
-    promptOutput.innerText    = '🎨 Rendering vector graphics locally...';
+    promptOutput.innerText    = '🎨 Rendering...';
 
-    const payload = {
-        brand_name:       document.getElementById('t2-name').value       || 'MyBrand',
-        industry:         document.getElementById('t2-industry').value   || 'Business',
-        keywords:         document.getElementById('t2-keywords').value   || 'Minimal',
-        style_preference: document.getElementById('t2-style').value      || 'Minimalist Vector'
+    // ── Color palettes by style ──
+    const palettes = {
+        minimalist: [
+            {bg:'#0D0D0D', accent:'#FFFFFF', secondary:'#888888'},
+            {bg:'#FAFAFA', accent:'#111111', secondary:'#555555'},
+            {bg:'#1a1a2e', accent:'#e94560', secondary:'#FFFFFF'},
+        ],
+        bold: [
+            {bg:'#FF3B30', accent:'#FFFFFF', secondary:'#FFD700'},
+            {bg:'#007AFF', accent:'#FFFFFF', secondary:'#00E5FF'},
+            {bg:'#FF6B35', accent:'#1a1a1a', secondary:'#FFFFFF'},
+        ],
+        vintage: [
+            {bg:'#2C1810', accent:'#D4A843', secondary:'#F5E6C8'},
+            {bg:'#4A3728', accent:'#C8A96E', secondary:'#E8D5B0'},
+            {bg:'#1B2A1B', accent:'#8DB87F', secondary:'#E8F5E8'},
+        ],
+        futuristic: [
+            {bg:'#050510', accent:'#00E5FF', secondary:'#7B2FFF'},
+            {bg:'#0A0A1A', accent:'#00FF88', secondary:'#FF2D78'},
+            {bg:'#080820', accent:'#FF6B9D', secondary:'#C77DFF'},
+        ],
     };
 
-    // Retry helper — handles Render cold starts gracefully
-    async function fetchWithRetry(url, options, retries = 3, delayMs = 4000) {
-        for (let i = 0; i < retries; i++) {
-            try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout
-                const res = await fetch(url, { ...options, signal: controller.signal });
-                clearTimeout(timeout);
-                return res;
-            } catch (err) {
-                if (i === retries - 1) throw err;
-                promptOutput.innerText = `⏳ Server waking up... retrying (${i + 2}/${retries})`;
-                await new Promise(r => setTimeout(r, delayMs));
-            }
-        }
+    const styleKey = Object.keys(palettes).find(k => style.toLowerCase().includes(k)) || 'minimalist';
+    const opts     = palettes[styleKey];
+    const p        = opts[Math.floor(Math.random() * opts.length)];
+
+    // ── Build initials ──
+    const initials = brandName.split(/\s+/).slice(0,2).map(w => w[0]?.toUpperCase()||'').join('') || brandName.slice(0,2).toUpperCase() || 'BF';
+    const fs       = initials.length === 1 ? 160 : initials.length === 2 ? 120 : 90;
+
+    // ── Geometric shape by style ──
+    const sl = style.toLowerCase();
+    let shape = '';
+    if (sl.includes('vintage')) {
+        shape = `<polygon points="200,40 340,100 340,220 200,320 60,220 60,100" fill="none" stroke="${p.accent}" stroke-width="3" opacity="0.5"/>
+                 <polygon points="200,60 318,110 318,210 200,300 82,210 82,110" fill="none" stroke="${p.accent}" stroke-width="1" opacity="0.25"/>`;
+    } else if (sl.includes('futuristic')) {
+        shape = `<polygon points="200,30 330,105 330,255 200,330 70,255 70,105" fill="none" stroke="${p.accent}" stroke-width="2" opacity="0.35"/>
+                 <circle cx="200" cy="180" r="92" fill="none" stroke="${p.accent}" stroke-width="1" opacity="0.2" stroke-dasharray="5 4"/>
+                 <line x1="70" y1="105" x2="330" y2="255" stroke="${p.secondary}" stroke-width="0.5" opacity="0.15"/>`;
+    } else if (sl.includes('bold')) {
+        shape = `<rect x="30" y="30" width="340" height="320" rx="0" fill="none" stroke="${p.accent}" stroke-width="5" opacity="0.12"/>`;
+    } else {
+        shape = `<circle cx="200" cy="170" r="112" fill="none" stroke="${p.accent}" stroke-width="1.5" opacity="0.2"/>
+                 <line x1="88" y1="170" x2="312" y2="170" stroke="${p.accent}" stroke-width="0.5" opacity="0.12"/>
+                 <line x1="200" y1="58"  x2="200" y2="282" stroke="${p.accent}" stroke-width="0.5" opacity="0.12"/>`;
     }
 
-    try {
-        const response = await fetchWithRetry(`${CONFIG.API_BASE_URL}/api/generate-logo`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify(payload)
-        });
+    const tagline = (industry || keywords).toUpperCase().slice(0, 28);
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="800" height="800">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   style="stop-color:${p.bg}"/>
+      <stop offset="100%" style="stop-color:${p.bg}DD"/>
+    </linearGradient>
+    <linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   style="stop-color:${p.accent}"/>
+      <stop offset="100%" style="stop-color:${p.secondary}"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  ${shape}
+  <text x="200" y="200" font-family="Georgia,serif" font-size="${fs}" font-weight="700"
+    fill="url(#tg)" text-anchor="middle" dominant-baseline="middle"
+    filter="url(#glow)" letter-spacing="-2">${initials}</text>
+  <text x="200" y="308" font-family="Arial Narrow,Arial,sans-serif" font-size="22"
+    font-weight="300" fill="${p.accent}" text-anchor="middle" letter-spacing="8" opacity="0.9">${brandName.toUpperCase()}</text>
+  <line x1="120" y1="325" x2="280" y2="325" stroke="${p.accent}" stroke-width="0.75" opacity="0.4"/>
+  <text x="200" y="346" font-family="Arial Narrow,Arial,sans-serif" font-size="10"
+    fill="${p.secondary}" text-anchor="middle" letter-spacing="4" opacity="0.7">${tagline}</text>
+</svg>`;
 
-        const data = await response.json();
+    const dataURI = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
 
-        // THE FIX: Use data.image_url directly without the API_BASE_URL prefix!
-        imageOutput.src           = data.image_url;
-        imageOutput.style.display = 'block';
-        promptOutput.innerText    = `Generation Engine:\n${data.prompt_used}`;
-        
-        // Setup download button for the SVG
-        downloadBtn.href          = data.image_url;
-        downloadBtn.download      = `${payload.brand_name.replace(/\s+/g, '_')}_logo.svg`;
-        downloadBtn.style.display = 'inline-block';
-
-        showToast('🎨 Logo rendered successfully!');
-
-    } catch (error) {
-        promptOutput.innerText = `❌ Error: ${error.message}`;
-        showToast('❌ Image generation failed.');
-        console.error(error);
-    } finally {
-        loader.style.display = 'none';
-    }
+    imageOutput.src           = dataURI;
+    imageOutput.style.display = 'block';
+    downloadBtn.href          = dataURI;
+    downloadBtn.download      = brandName.replace(/\s+/g,'_') + '_logo.svg';
+    downloadBtn.style.display = 'inline-block';
+    promptOutput.innerText    = `✅ Logo rendered!\nStyle: ${styleKey} | Brand: ${brandName} | Industry: ${industry}`;
+    loader.style.display      = 'none';
+    showToast('🎨 Logo rendered!');
 }
 
 
