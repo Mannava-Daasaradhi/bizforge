@@ -354,10 +354,11 @@ async function generateLogo() {
 
         const data = await response.json();
 
-        imageOutput.src           = `${CONFIG.API_BASE_URL}${data.image_url}`;
+        
+        imageOutput.src           = data.image_url;
         imageOutput.style.display = 'block';
         promptOutput.innerText    = `Prompt Used:\n${data.prompt_used}`;
-        downloadBtn.href          = `${CONFIG.API_BASE_URL}${data.image_url}`;
+        downloadBtn.href          = data.image_url;
         downloadBtn.style.display = 'inline-block';
 
         showToast('🎨 Masterpiece rendered!');
