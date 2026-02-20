@@ -57,41 +57,35 @@ async def call_groq(
         raise HTTPException(status_code=500, detail=f"Groq API Error: {str(e)}")
 
 
-import time
-import urllib.parse
-import requests
-from pathlib import Path
-from fastapi import HTTPException
-
-# Ensure the static directory exists
-LOGO_SAVE_DIR = Path(__file__).resolve().parent.parent / "frontend" / "static" / "generated_logos"
-LOGO_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+import base64
 
 async def generate_logo_image(req):
-    # 1. Use Groq to generate a creative concept explanation for the UI
-    concept_prompt = f"Write a 1-sentence abstract artistic interpretation of a geometric vector logo for a brand named {req.brand_name} in the {req.industry} industry."
-    concept = await call_groq(concept_prompt)
+    # 1. Get the first letter of the brand name for the logo
+    initial = req.brand_name[0].upper() if req.brand_name else "B"
     
-    # 2. Call the reliable DiceBear API to instantly generate a geometric vector logo based on the brand name
-    encoded_seed = urllib.parse.quote(req.brand_name)
-    api_url = f"https://api.dicebear.com/9.x/shapes/svg?seed={encoded_seed}&backgroundColor=ffffff"
+    # 2. Draw a beautiful, modern SVG logo using pure code!
+    # No APIs, no external servers, no downloading.
+    svg_code = f"""
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="1024" height="1024">
+        <defs>
+            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#2A2D34;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#141518;stop-opacity:1" />
+            </linearGradient>
+        </defs>
+        <rect width="400" height="400" rx="100" fill="url(#grad)"/>
+        <text x="50%" y="55%" font-family="Arial, sans-serif" font-size="200" 
+              font-weight="bold" fill="#00E5FF" text-anchor="middle" dy=".3em">{initial}</text>
+    </svg>
+    """
     
-    try:
-        response = requests.get(api_url)
-        response.raise_for_status()
-        svg_bytes = response.content
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Logo Generation Error: {str(e)}")
-
-    # 3. Save the SVG file to your Render server
-    filename  = f"logo_{int(time.time())}.svg"
-    filepath  = LOGO_SAVE_DIR / filename
-    filepath.write_bytes(svg_bytes)
-
-    # 4. Return the relative static path (restoring your original frontend architecture!)
+    # 3. Encode the SVG into a format the web browser can read directly as an image source
+    b64_svg = base64.b64encode(svg_code.encode('utf-8')).decode('utf-8')
+    data_uri = f"data:image/svg+xml;base64,{b64_svg}"
+    
     return {
-        "image_url":   f"/static/generated_logos/{filename}",
-        "prompt_used": f"Geometric Vector Concept: {concept}",
+        "image_url": data_uri,
+        "prompt_used": "Zero-Dependency Local Vector Engine (Fallback)",
     }
 
 # ══════════════════════════════════════════════════════════════════════════════
