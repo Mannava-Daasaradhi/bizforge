@@ -56,9 +56,9 @@ async def call_groq(
 
 
 async def call_sdxl(prompt: str) -> bytes:
-    """Helper function to call HuggingFace via the new Router API"""
-    # Using the new router endpoint and the lightning-fast SDXL-Lightning model
-    API_URL = "https://router.huggingface.co/hf-inference/models/ByteDance/SDXL-Lightning"
+    """Helper function to call HuggingFace using FLUX.1 (Free Tier Supported)"""
+    # Using FLUX.1-schnell, currently the most stable and high-quality free model on HF
+    API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
     headers = {
         "Authorization": f"Bearer {HF_API_KEY}",
         "Content-Type": "application/json"
@@ -69,7 +69,6 @@ async def call_sdxl(prompt: str) -> bytes:
         return response.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image Generation Error: {str(e)}")
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — Brand Names Generator
