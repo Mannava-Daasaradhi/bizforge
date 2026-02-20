@@ -56,20 +56,19 @@ async def call_groq(
 
 
 async def call_sdxl(prompt: str) -> bytes:
-    """Call HuggingFace Stable Diffusion XL via Inference API."""
-    API_URL = "https://api-inference.huggingface.co/models/ByteDance/SDXL-Lightning"
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    """Helper function to call HuggingFace via the new Router API"""
+    # Using the new router endpoint and the lightning-fast SDXL-Lightning model
+    API_URL = "https://router.huggingface.co/hf-inference/models/ByteDance/SDXL-Lightning"
+    headers = {
+        "Authorization": f"Bearer {HF_API_KEY}",
+        "Content-Type": "application/json"
+    }
     try:
-        response = requests.post(
-            API_URL,
-            headers=headers,
-            json={"inputs": prompt},
-            timeout=120,   # SDXL can be slow on cold starts
-        )
+        response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
         response.raise_for_status()
         return response.content
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"SDXL Image Generation Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Image Generation Error: {str(e)}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
