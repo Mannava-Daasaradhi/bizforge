@@ -1,106 +1,185 @@
 # backend/ai_services.py
 import os
 import time
+import tempfile
 import requests
+from pathlib import Path
 from fastapi import HTTPException
 from dotenv import load_dotenv
 from groq import Groq
 
-# Load environment variables
+# ── Environment Setup ──────────────────────────────────────────────────────────
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-HF_API_KEY = os.getenv("HF_API_KEY")
+HF_API_KEY   = os.getenv("HF_API_KEY")
 
-if not GROQ_API_KEY or not HF_API_KEY:
-    print("WARNING: API keys missing from .env file!")
+if not GROQ_API_KEY:
+    print("⚠️  WARNING: GROQ_API_KEY missing from .env!")
+if not HF_API_KEY:
+    print("⚠️  WARNING: HF_API_KEY missing from .env!")
 
-# Initialize Groq Client
+# ── Groq Client ────────────────────────────────────────────────────────────────
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# ==========================================
-# HELPER FUNCTIONS
-# ==========================================
-async def call_groq(prompt: str, system_prompt: str = "You are an expert branding and marketing AI assistant.") -> str:
-    """Helper function to call Groq LLaMA-3.3-70B"""
+# ── Static logos path (resolved relative to THIS file, not the working directory)
+# FIX: was "../frontend/static/generated_logos" which breaks depending on where
+#      uvicorn is launched from.  Now always resolves correctly.
+LOGO_SAVE_DIR = Path(__file__).resolve().parent.parent / "frontend" / "static" / "generated_logos"
+LOGO_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SHARED HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+async def call_groq(
+    prompt: str,
+    system_prompt: str = "You are BizForge AI, an expert branding and marketing assistant.",
+    max_tokens: int = 1024,
+) -> str:
+    """Thin wrapper around Groq LLaMA-3.3-70B chat completions."""
     try:
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
+                {"role": "user",   "content": prompt},
             ],
             temperature=0.7,
             top_p=0.95,
+            max_tokens=max_tokens,
         )
         return completion.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Groq API Error: {str(e)}")
 
+
 async def call_sdxl(prompt: str) -> bytes:
-    """Helper function to call HuggingFace SDXL via Inference API"""
+    """Call HuggingFace Stable Diffusion XL via Inference API."""
     API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     try:
-        response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json={"inputs": prompt},
+            timeout=120,   # SDXL can be slow on cold starts
+        )
         response.raise_for_status()
         return response.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"SDXL Image Generation Error: {str(e)}")
 
-# ==========================================
-# TOOL ENDPOINTS (1 to 24)
-# ==========================================
 
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 1 — Brand Names Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_brand_names(req):
-    prompt = f"Generate 10-20 highly creative brand names for a business in the {req.industry} industry. The keywords are: {req.keywords}. The tone should be {req.tone}. Include a punchy one-line tagline for each name. Format as a clean list."
+    prompt = (
+        f"Generate 10-20 highly creative brand names for a business in the {req.industry} industry. "
+        f"Keywords: {req.keywords}. Tone: {req.tone}. "
+        f"Include a punchy one-line tagline for each name. Format as a clean numbered list."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 2 — Logo Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_logo_image(req):
-    # 1. Use Groq to craft the perfect SDXL prompt
-    prompt_builder = f"Write a highly descriptive, comma-separated image generation prompt for Stable Diffusion XL to create a logo. Brand name: {req.brand_name}, Industry: {req.industry}, Keywords: {req.keywords}, Style: {req.style_preference}. Only output the prompt, nothing else. Make it highly professional, clean white background, vector style."
+    # Step 1: Ask Groq to craft the ideal SDXL prompt
+    prompt_builder = (
+        f"Write a highly descriptive, comma-separated Stable Diffusion XL image generation prompt "
+        f"to create a professional logo. Brand: {req.brand_name}, Industry: {req.industry}, "
+        f"Keywords: {req.keywords}, Style: {req.style_preference}. "
+        f"Specify clean white background, vector style, no text. Output the prompt only."
+    )
     sdxl_prompt = await call_groq(prompt_builder)
-    
-    # 2. Call SDXL
+
+    # Step 2: Generate the image with SDXL
     image_bytes = await call_sdxl(sdxl_prompt)
-    
-    # 3. Save to disk (for local/cloud temporary storage)
-    save_dir = "../frontend/static/generated_logos"
-    os.makedirs(save_dir, exist_ok=True)
-    filename = f"logo_{int(time.time())}.png"
-    filepath = os.path.join(save_dir, filename)
-    
-    with open(filepath, "wb") as f:
-        f.write(image_bytes)
-        
+
+    # Step 3: Save image using the absolute path resolved at module load time
+    filename  = f"logo_{int(time.time())}.png"
+    filepath  = LOGO_SAVE_DIR / filename
+    filepath.write_bytes(image_bytes)
+
     return {
-        "image_url": f"/static/generated_logos/{filename}",
-        "prompt_used": sdxl_prompt
+        "image_url":   f"/static/generated_logos/{filename}",
+        "prompt_used": sdxl_prompt,
     }
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — Marketing Content Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_marketing_content(req):
-    prompt = f"Write {req.content_type} for a brand described as: {req.brand_description}. The tone must be exactly {req.tone}. Make it polished and ready for publication."
+    prompt = (
+        f"Write a {req.content_type} for a brand described as: {req.brand_description}. "
+        f"Tone: {req.tone}. Make it polished and publication-ready."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — Design System
+# FIX: was req.tone — field name in ColorRequest is brand_tone
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_design_system(req):
-    prompt = f"Create a design system for a {req.tone} brand in the {req.industry} industry. Output exactly: 1. 3-5 HEX color codes. 2. A primary and secondary font pairing recommendation. 3. A CSS variables snippet with the colors."
+    prompt = (
+        f"Create a design system for a {req.brand_tone} brand in the {req.industry} industry. "
+        f"Output exactly: "
+        f"1. 3-5 HEX color codes with names. "
+        f"2. Primary and secondary font pairing recommendation. "
+        f"3. A CSS :root variables snippet using those colors."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — Sentiment Analysis / Review Analyzer
+# ══════════════════════════════════════════════════════════════════════════════
 async def analyze_sentiment(req):
-    prompt = f"Analyze this customer review: '{req.review_text}'. The brand's tone is {req.brand_tone_reference}. 1. Classify sentiment (Positive/Neutral/Negative). 2. Give a confidence score. 3. Break down the emotional tone. 4. Rewrite the review into a highly professional testimonial aligning with the brand tone."
+    prompt = (
+        f"Analyze this customer review: '{req.review_text}'. Brand tone: {req.brand_tone_reference}. "
+        f"Output: "
+        f"1. Sentiment classification (Positive / Neutral / Negative). "
+        f"2. Confidence score (0-100%). "
+        f"3. Emotional tone breakdown. "
+        f"4. A professionally rewritten version aligned with the brand tone."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 6 — AI Branding Chatbot
+# ══════════════════════════════════════════════════════════════════════════════
 async def ibm_granite_chat(req):
-    # Constructing a chat history for Groq to handle the Chatbot tab efficiently in the cloud
-    messages = [{"role": "system", "content": "You are BizForge AI, an expert branding assistant."}]
-    
+    """
+    Multi-turn branding chatbot.
+    Uses Groq LLaMA for cloud performance; IBM Granite system persona is applied
+    via the system prompt so behaviour matches the spec.
+    """
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are BizForge AI, an expert brand consultant and creative strategist. "
+                "You help startups and entrepreneurs build strong brand identities. "
+                "Be concise, insightful, and actionable in every response."
+            ),
+        }
+    ]
+
+    # Replay conversation history for multi-turn context
     for msg in req.history:
         messages.append({"role": msg.role, "content": msg.content})
-        
+
     messages.append({"role": "user", "content": req.message})
 
     try:
@@ -108,114 +187,303 @@ async def ibm_granite_chat(req):
             model="llama-3.3-70b-versatile",
             messages=messages,
             temperature=0.7,
+            max_tokens=512,
         )
         return {"response": completion.choices[0].message.content}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat API Error: {str(e)}")
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 7 — Tagline & Slogan Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_taglines(req):
-    prompt = f"Create 5-10 punchy taglines/slogans for '{req.brand_name}' in the {req.industry} industry. Core value: {req.core_value}. Tone: {req.tone}. Add a bracketed emotional label next to each (e.g., [Inspiring])."
+    prompt = (
+        f"Create 5-10 punchy taglines/slogans for '{req.brand_name}' in the {req.industry} industry. "
+        f"Core value: {req.core_value}. Tone: {req.tone}. "
+        f"Add a bracketed emotional label next to each (e.g., [Inspiring], [Bold])."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 8 — Brand Story Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_brand_story(req):
     founder_str = f"Founder: {req.founder_name}." if req.founder_name else ""
-    prompt = f"Write a compelling 1-2 paragraph brand origin story. Business: {req.business_type}. Mission: {req.mission}. Audience: {req.target_audience}. Founded: {req.year_founded}. {founder_str} Make it emotionally resonant."
+    prompt = (
+        f"Write a compelling 1-2 paragraph brand origin story. "
+        f"Business: {req.business_type}. Mission: {req.mission}. "
+        f"Audience: {req.target_audience}. Founded: {req.year_founded}. {founder_str} "
+        f"Make it emotionally resonant and authentic."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 9 — Social Media Post Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_social_post(req):
-    prompt = f"Write a {req.platform} post about {req.topic} for this brand: {req.brand_description}. Tone: {req.tone}. Optimize for {req.platform}, include appropriate emojis, and put 5-8 relevant hashtags at the bottom."
+    prompt = (
+        f"Write a {req.platform} post about '{req.topic}' for this brand: {req.brand_description}. "
+        f"Tone: {req.tone}. Optimise for {req.platform} — include appropriate emojis and "
+        f"5-8 relevant hashtags grouped at the bottom."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 10 — Email Template Writer
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_email_template(req):
-    prompt = f"Write a {req.email_type} email for '{req.brand_name}'. Key message: {req.key_message}. Tone: {req.tone}. Include a catchy Subject Line separated clearly at the top, body copy, and a clear Call to Action."
+    prompt = (
+        f"Write a {req.email_type} email for '{req.brand_name}'. "
+        f"Key message: {req.key_message}. Tone: {req.tone}. "
+        f"Structure: Subject Line (clearly labelled), Body, and a strong Call to Action."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 11 — Product Description Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_product_description(req):
-    prompt = f"Product: {req.product_name}. Features: {req.key_features}. Target: {req.target_customer}. Tone: {req.tone}. Output exactly three sections: 1. Short description (max 50 words). 2. Long description (~150 words). 3. Bullet-point highlights."
+    prompt = (
+        f"Product: {req.product_name}. Features: {req.key_features}. "
+        f"Target customer: {req.target_customer}. Tone: {req.tone}. "
+        f"Output exactly three clearly labelled sections: "
+        f"1. Short description (max 50 words). "
+        f"2. Long description (~150 words). "
+        f"3. Bullet-point highlights (5-7 points)."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 12 — Brand Mission & Vision Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_mission_vision(req):
-    prompt = f"Industry: {req.industry}. Values: {req.core_values}. Audience: {req.target_audience}. Goal: {req.impact_goal}. Output: 1. A strong Mission Statement. 2. A bold Vision Statement. 3. A formatted list of 3-5 Core Values with brief explanations."
+    prompt = (
+        f"Industry: {req.industry}. Values: {req.core_values}. "
+        f"Audience: {req.target_audience}. Goal: {req.impact_goal}. "
+        f"Output: "
+        f"1. A strong Mission Statement. "
+        f"2. A bold Vision Statement. "
+        f"3. A formatted list of 3-5 Core Values with one-line explanations."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 13 — Target Audience Persona Builder
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_personas(req):
-    prompt = f"Build 2 detailed buyer personas for a {req.product_type} in the {req.industry} industry. Price range: {req.price_range}. Geography: {req.geography}. Include Name, Age, Job, Pain Points, Goals, Preferred Platforms, and Buying Triggers."
+    prompt = (
+        f"Build 2 detailed buyer personas for a {req.product_type} in the {req.industry} industry. "
+        f"Price range: {req.price_range}. Geography: {req.geography}. "
+        f"For each persona include: Name, Age, Job Title, Pain Points, Goals, "
+        f"Preferred Platforms, and Buying Triggers. Format as clearly separated cards."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 14 — Ad Copy Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_ad_copy(req):
-    prompt = f"Write ad copy for {req.platform}. Product: {req.product_service}. USP: {req.usp}. Audience: {req.target_audience}. Output: Headline (max 30 chars), Description (max 90 chars), CTA, and a slightly longer variant."
+    prompt = (
+        f"Write ad copy for {req.platform}. Product/Service: {req.product_service}. "
+        f"USP: {req.usp}. Target audience: {req.target_audience}. "
+        f"Output clearly labelled: "
+        f"Headline (max 30 chars), Description (max 90 chars), CTA, "
+        f"and a longer body copy variant."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 15 — Hashtag Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_hashtags(req):
-    prompt = f"Generate 15-30 hashtags for a {req.brand_niche} brand posting about {req.post_topic} on {req.platform}. Tone: {req.tone}. Group them under headers: Popular, Niche, and Branded."
+    prompt = (
+        f"Generate 15-30 hashtags for a {req.brand_niche} brand posting about "
+        f"'{req.post_topic}' on {req.platform}. Tone: {req.tone}. "
+        f"Group them under three headers: Popular, Niche, and Branded."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 16 — Press Release Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_press_release(req):
-    prompt = f"Write a formal Press Release for '{req.brand_name}'. Announcement: {req.announcement_type}. Details: {req.key_details}. Quote: '{req.founder_quote}'. Include standard PR formatting (FOR IMMEDIATE RELEASE, Headline, Dateline, Body, Boilerplate, Media Contact)."
-    result = await call_groq(prompt)
+    prompt = (
+        f"Write a formal Press Release for '{req.brand_name}'. "
+        f"Announcement type: {req.announcement_type}. Details: {req.key_details}. "
+        f"Founder quote: '{req.founder_quote}'. "
+        f"Use standard PR format: FOR IMMEDIATE RELEASE, Headline, Dateline, "
+        f"Body (3 paragraphs), Boilerplate, and Media Contact section."
+    )
+    result = await call_groq(prompt, max_tokens=1200)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 17 — SEO Meta Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_seo_meta(req):
-    prompt = f"Generate SEO metadata for '{req.brand_name}'. Topic: {req.page_topic}. Keyword: {req.target_keyword}. Tone: {req.tone}. Output: Title Tag (max 60 chars), Meta Description (max 160 chars), 5 focus keywords, Open Graph Title & Description."
+    prompt = (
+        f"Generate SEO metadata for '{req.brand_name}'. "
+        f"Page topic: {req.page_topic}. Target keyword: {req.target_keyword}. Tone: {req.tone}. "
+        f"Output: "
+        f"1. SEO Title Tag (max 60 chars — state char count). "
+        f"2. Meta Description (max 160 chars — state char count). "
+        f"3. 5 focus keywords. "
+        f"4. Open Graph Title & Description."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 18 — FAQ Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_faqs(req):
-    prompt = f"Write 8-10 Frequently Asked Questions and answers for a {req.business_type} selling {req.product_description} to {req.target_audience}. Anticipate common objections and support queries."
-    result = await call_groq(prompt)
+    prompt = (
+        f"Write 8-10 Frequently Asked Questions with detailed answers for a "
+        f"{req.business_type} selling {req.product_description} to {req.target_audience}. "
+        f"Anticipate common objections, shipping/returns queries, and product concerns."
+    )
+    result = await call_groq(prompt, max_tokens=1200)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 19 — Brand Pitch Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_pitch(req):
-    traction_str = f"Traction: {req.traction}." if req.traction else ""
-    prompt = f"Business: {req.business_name}. Problem: {req.problem_solved}. Solution: {req.solution}. Market: {req.target_market}. Revenue: {req.revenue_model}. {traction_str} Output: 1. A 60-second elevator pitch. 2. A 5-point investor pitch slide outline."
+    traction_str = f"Traction so far: {req.traction}." if req.traction else ""
+    prompt = (
+        f"Business: {req.business_name}. Problem solved: {req.problem_solved}. "
+        f"Solution: {req.solution}. Target market: {req.target_market}. "
+        f"Revenue model: {req.revenue_model}. {traction_str} "
+        f"Output: "
+        f"1. A compelling 60-second elevator pitch (spoken words). "
+        f"2. A 5-point investor pitch slide outline."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 20 — Long Text Summarizer
+# ══════════════════════════════════════════════════════════════════════════════
 async def summarize_text(req):
-    prompt = f"Summarize the following text. Provide exactly: 1. A 3-sentence summary. 2. 5 key bullet points. 3. Suggested brand insights from this text.\n\nText:\n{req.document_text}"
-    result = await call_groq(prompt)
+    prompt = (
+        f"Summarize the following text.\n\n"
+        f"Output exactly:\n"
+        f"1. A 3-sentence summary.\n"
+        f"2. 5 key bullet points.\n"
+        f"3. 3 suggested brand insights extracted from the text.\n\n"
+        f"Text:\n{req.document_text}"
+    )
+    result = await call_groq(prompt, max_tokens=800)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 21 — Voice Input Transcription
+# FIX: original code read audio_bytes but never used them for writing;
+#      file.filename could be None; temp file was written but path management
+#      was inconsistent. Fully rewritten below.
+# ══════════════════════════════════════════════════════════════════════════════
 async def transcribe_audio(file):
-    # Using Groq's fast Whisper implementation for the audio file
+    """
+    Accepts an UploadFile from FastAPI, saves it to a temp file,
+    transcribes using Groq Whisper, then cleans up.
+    """
     try:
         audio_bytes = await file.read()
-        import tempfile
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-            temp_audio.write(audio_bytes)
-            temp_audio_path = temp_audio.name
-            
-        with open(temp_audio_path, "rb") as f:
+
+        # Determine file extension safely
+        original_filename = file.filename or "audio.wav"
+        suffix = Path(original_filename).suffix or ".wav"
+
+        # Write to a named temp file so Groq SDK can open it by path
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        # Transcribe using Groq Whisper
+        with open(tmp_path, "rb") as audio_file:
             transcription = groq_client.audio.transcriptions.create(
-                file=(file.filename, f.read()),
+                file=(original_filename, audio_file),
                 model="whisper-large-v3",
             )
-        os.remove(temp_audio_path) # cleanup
-        return {"text": transcription.text}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Transcription error: {str(e)}")
 
+        # Clean up temp file
+        os.remove(tmp_path)
+
+        return {"text": transcription.text}
+
+    except Exception as e:
+        # Attempt cleanup even on failure
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Transcription Error: {str(e)}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 22 — Brand Consistency Checker
+# ══════════════════════════════════════════════════════════════════════════════
 async def check_brand_consistency(req):
     pieces = "\n---\n".join(req.content_pieces)
-    prompt = f"Analyze these pieces of brand content for consistency:\n{pieces}\n\nOutput: 1. Consistency Score (0-100). 2. Tone alignment analysis. 3. Inconsistency flags. 4. AI improvement suggestions."
+    prompt = (
+        f"Analyze these brand content pieces for consistency:\n\n{pieces}\n\n"
+        f"Output: "
+        f"1. Consistency Score (0-100). "
+        f"2. Tone alignment analysis. "
+        f"3. Specific inconsistency flags (list each one). "
+        f"4. Concrete AI improvement suggestions for each flag."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 23 — Business Card Content Generator
+# ══════════════════════════════════════════════════════════════════════════════
 async def generate_business_card(req):
-    prompt = f"Design 3 business card copy layouts (Minimalist, Bold, Creative). Name: {req.name}, Role: {req.role}, Brand: {req.brand_name}, Contact: {req.contact_info}, Tagline: {req.tagline_preference}."
+    prompt = (
+        f"Design 3 business card copy layouts for: "
+        f"Name: {req.name}, Role: {req.role}, Brand: {req.brand_name}, "
+        f"Contact: {req.contact_info}, Tagline preference: {req.tagline_preference}. "
+        f"Label each layout clearly: Minimalist, Bold, and Creative."
+    )
     result = await call_groq(prompt)
     return {"result": result}
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 24 — Brand Name Availability Checker
+# ══════════════════════════════════════════════════════════════════════════════
 async def check_domain_availability(req):
-    prompt = f"Generate 10 domain name variations (.com, .io, .co, .ai) for the brand '{req.brand_name}'. Also suggest 3 social media handle formats. Output clearly."
+    prompt = (
+        f"Generate 10 domain name variations (.com, .io, .co, .ai, .app, .brand) "
+        f"for the brand name '{req.brand_name}'. "
+        f"Also suggest 3 social media handle formats for Instagram, X (Twitter), and LinkedIn. "
+        f"Format as a clean, clearly labelled list."
+    )
     result = await call_groq(prompt)
     return {"result": result}
