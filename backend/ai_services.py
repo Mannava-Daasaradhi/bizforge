@@ -57,23 +57,22 @@ async def call_groq(
         raise HTTPException(status_code=500, detail=f"Groq API Error: {str(e)}")
 
 
-async def call_sdxl(prompt: str) -> bytes:
-    """Helper function to call Pollinations.ai with a browser disguise"""
-    # URL-encode the prompt
-    encoded_prompt = urllib.parse.quote(prompt)
-    API_URL = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+async def generate_logo_image(req):
+    # 1. Use Groq to craft the perfect image prompt
+    prompt_builder = f"Write a highly descriptive, comma-separated image generation prompt to create a logo. Brand name: {req.brand_name}, Industry: {req.industry}, Keywords: {req.keywords}, Style: {req.style_preference}. Only output the prompt, nothing else. Make it highly professional, clean white background, vector style, NO TEXT."
     
-    # The Magic Disguise: Tell Cloudflare we are just a normal Chrome browser
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    # Get the prompt from Groq
+    sdxl_prompt = await call_groq(prompt_builder)
+    
+    # 2. Format the URL for Pollinations
+    encoded_prompt = urllib.parse.quote(sdxl_prompt)
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+    
+    # 3. Pass the URL directly to the frontend so the user's browser fetches the image!
+    return {
+        "image_url": image_url,
+        "prompt_used": sdxl_prompt
     }
-    
-    try:
-        response = requests.get(API_URL, headers=headers)
-        response.raise_for_status()
-        return response.content
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Image Generation Error: {str(e)}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — Brand Names Generator
