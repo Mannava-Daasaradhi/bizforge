@@ -8,6 +8,8 @@ from fastapi import HTTPException
 from dotenv import load_dotenv
 from groq import Groq
 import urllib.parse
+import requests
+from fastapi import HTTPException
 # ── Environment Setup ──────────────────────────────────────────────────────────
 load_dotenv()
 
@@ -56,16 +58,18 @@ async def call_groq(
 
 
 async def call_sdxl(prompt: str) -> bytes:
-    """Helper function to call Pollinations.ai (Free, Fast, No-Key Image Generation)"""
-    # URL-encode the prompt so it can safely be sent in the web address
+    """Helper function to call Pollinations.ai with a browser disguise"""
+    # URL-encode the prompt
     encoded_prompt = urllib.parse.quote(prompt)
-    
-    # Request a high-quality 1024x1024 image, hiding the default watermark
     API_URL = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
     
+    # The Magic Disguise: Tell Cloudflare we are just a normal Chrome browser
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
     try:
-        # Note: This is a GET request now, not a POST
-        response = requests.get(API_URL)
+        response = requests.get(API_URL, headers=headers)
         response.raise_for_status()
         return response.content
     except Exception as e:
