@@ -57,7 +57,7 @@ async def call_groq(
 
 async def call_sdxl(prompt: str) -> bytes:
     """Call HuggingFace Stable Diffusion XL via Inference API."""
-    API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+    API_URL = "https://api-inference.huggingface.co/models/ByteDance/SDXL-Lightning"
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     try:
         response = requests.post(
