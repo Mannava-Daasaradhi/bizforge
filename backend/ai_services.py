@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import HTTPException
 from dotenv import load_dotenv
 from groq import Groq
-
+import urllib.parse
 # ── Environment Setup ──────────────────────────────────────────────────────────
 load_dotenv()
 
@@ -56,15 +56,16 @@ async def call_groq(
 
 
 async def call_sdxl(prompt: str) -> bytes:
-    """Helper function to call HuggingFace using FLUX.1 (Free Tier Supported)"""
-    # Using FLUX.1-schnell, currently the most stable and high-quality free model on HF
-    API_URL = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
-    headers = {
-        "Authorization": f"Bearer {HF_API_KEY}",
-        "Content-Type": "application/json"
-    }
+    """Helper function to call Pollinations.ai (Free, Fast, No-Key Image Generation)"""
+    # URL-encode the prompt so it can safely be sent in the web address
+    encoded_prompt = urllib.parse.quote(prompt)
+    
+    # Request a high-quality 1024x1024 image, hiding the default watermark
+    API_URL = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
+    
     try:
-        response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
+        # Note: This is a GET request now, not a POST
+        response = requests.get(API_URL)
         response.raise_for_status()
         return response.content
     except Exception as e:
