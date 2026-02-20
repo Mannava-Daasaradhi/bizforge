@@ -23,7 +23,7 @@ app.add_middleware(
     # Credentials are not needed (no cookies/auth), so False is correct here.
     # For production security, swap "*" for your Vercel domain:
     # allow_origins=["https://your-app.vercel.app"],
-    allow_origins=["*"],
+    allow_origins=["bizforge.vercel.app"],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
