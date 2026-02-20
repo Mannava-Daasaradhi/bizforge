@@ -334,10 +334,10 @@ async function generateLogo() {
     loader.style.display      = 'block';
     imageOutput.style.display = 'none';
     downloadBtn.style.display = 'none';
-    promptOutput.innerText    = '🎨 Crafting prompt and rendering pixels...';
+    promptOutput.innerText    = '🎨 Rendering vector graphics locally...';
 
     const payload = {
-        brand_name:       document.getElementById('t2-name').value      || 'MyBrand',
+        brand_name:       document.getElementById('t2-name').value       || 'MyBrand',
         industry:         document.getElementById('t2-industry').value   || 'Business',
         keywords:         document.getElementById('t2-keywords').value   || 'Minimal',
         style_preference: document.getElementById('t2-style').value      || 'Minimalist Vector'
@@ -354,18 +354,20 @@ async function generateLogo() {
 
         const data = await response.json();
 
-
-
-        imageOutput.src           = `${CONFIG.API_BASE_URL}${data.image_url}`;
+        // THE FIX: Use data.image_url directly without the API_BASE_URL prefix!
+        imageOutput.src           = data.image_url;
         imageOutput.style.display = 'block';
-        promptOutput.innerText    = `Prompt Used:\n${data.prompt_used}`;
-        downloadBtn.href          = `${CONFIG.API_BASE_URL}${data.image_url}`;
+        promptOutput.innerText    = `Generation Engine:\n${data.prompt_used}`;
+        
+        // Setup download button for the SVG
+        downloadBtn.href          = data.image_url;
+        downloadBtn.download      = `${payload.brand_name.replace(/\s+/g, '_')}_logo.svg`;
         downloadBtn.style.display = 'inline-block';
 
-        showToast('🎨 Masterpiece rendered!');
+        showToast('🎨 Logo rendered successfully!');
 
     } catch (error) {
-        promptOutput.innerText = `❌ Error: ${error.message}\nEnsure HuggingFace API key is valid and SDXL model is available.`;
+        promptOutput.innerText = `❌ Error: ${error.message}`;
         showToast('❌ Image generation failed.');
         console.error(error);
     } finally {
