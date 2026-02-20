@@ -57,21 +57,41 @@ async def call_groq(
         raise HTTPException(status_code=500, detail=f"Groq API Error: {str(e)}")
 
 
+import time
+import urllib.parse
+import requests
+from pathlib import Path
+from fastapi import HTTPException
+
+# Ensure the static directory exists
+LOGO_SAVE_DIR = Path(__file__).resolve().parent.parent / "frontend" / "static" / "generated_logos"
+LOGO_SAVE_DIR.mkdir(parents=True, exist_ok=True)
+
 async def generate_logo_image(req):
-    # 1. Use Groq to craft the perfect image prompt
-    prompt_builder = f"Write a highly descriptive, comma-separated image generation prompt to create a logo. Brand name: {req.brand_name}, Industry: {req.industry}, Keywords: {req.keywords}, Style: {req.style_preference}. Only output the prompt, nothing else. Make it highly professional, clean white background, vector style, NO TEXT."
+    # 1. Use Groq to generate a creative concept explanation for the UI
+    concept_prompt = f"Write a 1-sentence abstract artistic interpretation of a geometric vector logo for a brand named {req.brand_name} in the {req.industry} industry."
+    concept = await call_groq(concept_prompt)
     
-    # Get the prompt from Groq
-    sdxl_prompt = await call_groq(prompt_builder)
+    # 2. Call the reliable DiceBear API to instantly generate a geometric vector logo based on the brand name
+    encoded_seed = urllib.parse.quote(req.brand_name)
+    api_url = f"https://api.dicebear.com/9.x/shapes/svg?seed={encoded_seed}&backgroundColor=ffffff"
     
-    # 2. Format the URL for Pollinations
-    encoded_prompt = urllib.parse.quote(sdxl_prompt)
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
-    
-    # 3. Pass the URL directly to the frontend so the user's browser fetches the image!
+    try:
+        response = requests.get(api_url)
+        response.raise_for_status()
+        svg_bytes = response.content
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Logo Generation Error: {str(e)}")
+
+    # 3. Save the SVG file to your Render server
+    filename  = f"logo_{int(time.time())}.svg"
+    filepath  = LOGO_SAVE_DIR / filename
+    filepath.write_bytes(svg_bytes)
+
+    # 4. Return the relative static path (restoring your original frontend architecture!)
     return {
-        "image_url": image_url,
-        "prompt_used": sdxl_prompt
+        "image_url":   f"/static/generated_logos/{filename}",
+        "prompt_used": f"Geometric Vector Concept: {concept}",
     }
 
 # ══════════════════════════════════════════════════════════════════════════════
