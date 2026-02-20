@@ -6,6 +6,20 @@
 //      page were queried while on the other page.
 // ============================================================
 
+// ── Backend Wake-Up Ping ─────────────────────────────────────
+// Render free tier spins down after 15 min inactivity.
+// Pinging on page load warms the server before the user clicks
+// anything — prevents the 50-second cold start "Failed to fetch".
+(async function pingBackend() {
+    try {
+        const res = await fetch(`${CONFIG.API_BASE_URL}/`, { method: 'GET' });
+        if (!res.ok) console.warn('Backend ping returned non-OK status');
+    } catch (_) {
+        // Silently ignore — server may still be waking up
+        console.warn('Backend may be cold-starting on Render. First request may be slow.');
+    }
+})();
+
 // ── Theme Toggle ─────────────────────────────────────────────
 const themeToggle = document.getElementById('theme-toggle');
 if (themeToggle) {
@@ -294,8 +308,24 @@ async function generateContent(endpoint, tabId) {
                 return;
         }
 
-        // ── API Call ──────────────────────────────────────
-        const response = await fetch(`${CONFIG.API_BASE_URL}/${endpoint}`, {
+        // ── API Call (with retry for Render cold starts) ──
+        async function fetchWithRetry(url, options, retries = 3, delayMs = 4000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 25000);
+                    const res = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timeout);
+                    return res;
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                    outputBox.innerText = `⏳ Server waking up on Render... retrying (${i + 2}/${retries})`;
+                    await new Promise(r => setTimeout(r, delayMs));
+                }
+            }
+        }
+
+        const response = await fetchWithRetry(`${CONFIG.API_BASE_URL}/${endpoint}`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify(payload)
@@ -343,8 +373,25 @@ async function generateLogo() {
         style_preference: document.getElementById('t2-style').value      || 'Minimalist Vector'
     };
 
+    // Retry helper — handles Render cold starts gracefully
+    async function fetchWithRetry(url, options, retries = 3, delayMs = 4000) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout
+                const res = await fetch(url, { ...options, signal: controller.signal });
+                clearTimeout(timeout);
+                return res;
+            } catch (err) {
+                if (i === retries - 1) throw err;
+                promptOutput.innerText = `⏳ Server waking up... retrying (${i + 2}/${retries})`;
+                await new Promise(r => setTimeout(r, delayMs));
+            }
+        }
+    }
+
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/api/generate-logo`, {
+        const response = await fetchWithRetry(`${CONFIG.API_BASE_URL}/api/generate-logo`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify(payload)
